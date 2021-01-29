@@ -35,49 +35,91 @@ class MyWebServer(socketserver.BaseRequestHandler):
         self.data = self.request.recv(1024).strip()
         # print("Got a request of: %s\n" % self.data)
 
-        temp = [i.strip() for i in self.data.splitlines()]
+        # Checking for empty requests
+        if self.data != b'':
+            temp = [i.strip() for i in self.data.splitlines()]
 
-        if temp[0].find(b'HTTP') == -1:
-            self.request.sendall(
-                bytearray("HTTP/1.1 400 BAD_REQUEST\r\n", 'utf-8'))
+            if temp[0].find(b'HTTP') == -1:
+                self.request.sendall(
+                    bytearray("HTTP/1.1 400 BAD_REQUEST\r\n", 'utf-8'))
 
-        # Figure out our request method, path, and which version of HTTP we're using
-        method, path_recieved, protocol = [i.strip().decode("utf-8")
-                                           for i in temp[0].split()]
+            # Figure out our request method, path, and which version of HTTP we're using
+            method, path_recieved, protocol = [i.strip().decode("utf-8")
+                                               for i in temp[0].split()]
 
-        # Rasing a 405 response if method anything BUT a GET request
-        if 'GET' != method:
-            self.request.sendall(
-                bytearray("HTTP/1.1 405 METHOD_NOT_ALLOWED\r\n", 'utf-8'))
+            # Raising a 405 response if method anything BUT a GET request
+            # Creating a dictionary for headers
+            headers = {}
+            if 'GET' == method:
+                for k, v in [i.split(b':', 1) for i in temp[1:-1]]:
+                    headers[k.strip()] = v.strip()
+            else:
+                self.request.sendall(
+                    bytearray("HTTP/1.1 405 METHOD_NOT_ALLOWED\r\n", 'utf-8'))
 
-        # Checking the path file type
-        file_type = path_recieved[path_recieved.find('.')+1:]
+            # Checking the path file type
+            file_type = path_recieved[path_recieved.find('.')+1:]
 
-        # Checking for security
-        if '..' in path_recieved == True:
-            self.request.sendall(
-                bytearray("HTTP/1.1 404 FILE_NOT_FOUND\r\n", 'utf-8'))
-
-        # Checking for exmpty paths
-        if not path_recieved.endswith('/'):
-
-            # Correcting path format
-            path_recieved = "./www" + path_recieved
-
-            # Raising a 404 response if file if not within the path provided within the request
-            if not os.path.isfile(path_recieved):
+            # Checking for security
+            if '..' in path_recieved == True:
                 self.request.sendall(
                     bytearray("HTTP/1.1 404 FILE_NOT_FOUND\r\n", 'utf-8'))
-            else:
-                # Getting the file size
-                file_size = os.stat(path_recieved)
 
-                # Opening and reading the file in the path
-                file_handle = os.open(path_recieved, os.O_RDWR)
-                file_read = os.read(file_handle, file_size.st_size)
+            # Checking for exmpty paths
+            if file_type == 'html' or file_type == 'css':
 
-                # Displaying HTML
-                if file_type == 'html':
+                # Correcting path format
+                path_recieved = "./www" + path_recieved
+
+                # Raising a 404 response if file if not within the path provided within the request
+                if not os.path.isfile(path_recieved):
+                    self.request.sendall(
+                        bytearray("HTTP/1.1 404 FILE_NOT_FOUND\r\n", 'utf-8'))
+
+                else:
+                    # Getting the file size
+                    file_size = os.stat(path_recieved)
+
+                    # Opening and reading the file in the path
+                    file_handle = os.open(path_recieved, os.O_RDWR)
+                    file_read = os.read(file_handle, file_size.st_size)
+
+                    # Displaying HTML
+                    if file_type == 'html':
+                        self.request.sendall(
+                            bytearray("HTTP/1.1 200 OK\r\n", 'utf-8'))
+                        self.request.sendall(
+                            bytearray('Content-Type: text/html\r\n', 'utf-8'))
+                        self.request.send(bytearray('\r\n', 'utf-8'))
+                        self.request.sendall(bytearray(file_read))
+
+                    # Displaying Stylesheet
+                    elif file_type == 'css':
+                        self.request.sendall(
+                            bytearray("HTTP/1.1 200 OK\r\n", 'utf-8'))
+                        self.request.sendall(
+                            bytearray('Content-Type: text/css\r\n', 'utf-8'))
+                        self.request.send(bytearray('\r\n', 'utf-8'))
+                        self.request.sendall(bytearray(file_read))
+
+            elif file_type.endswith('/'):
+
+                # Correcting path format
+                path_recieved = "./www" + path_recieved + "index.html"
+
+                # Raising a 404 response if file if not within the path provided within the request
+                if not os.path.isfile(path_recieved):
+                    self.request.sendall(
+                        bytearray("HTTP/1.1 404 FILE_NOT_FOUND\r\n", 'utf-8'))
+                else:
+                    # Getting the file size
+                    file_size = os.stat(path_recieved)
+
+                    # Opening and reading the file in the path
+                    file_handle = os.open(path_recieved, os.O_RDWR)
+                    file_read = os.read(file_handle, file_size.st_size)
+
+                    # Displaying the index.html with the directory
                     self.request.sendall(
                         bytearray("HTTP/1.1 200 OK\r\n", 'utf-8'))
                     self.request.sendall(
@@ -85,18 +127,21 @@ class MyWebServer(socketserver.BaseRequestHandler):
                     self.request.send(bytearray('\r\n', 'utf-8'))
                     self.request.sendall(bytearray(file_read))
 
-                # Displaying Stylesheet
-                elif file_type == 'css':
+            else:
+                # Correcting path format
+                path_recieved = "./www" + path_recieved + '/'
+
+                # Raising a 404 response if file if not within the path provided within the request
+                if not os.path.isdir(path_recieved):
                     self.request.sendall(
-                        bytearray("HTTP/1.1 200 OK\r\n", 'utf-8'))
+                        bytearray("HTTP/1.1 404 FILE_NOT_FOUND\r\n", 'utf-8'))
+                else:
                     self.request.sendall(
-                        bytearray('Content-Type: text/css\r\n', 'utf-8'))
-                    self.request.send(bytearray('\r\n', 'utf-8'))
-                    self.request.sendall(bytearray(file_read))
+                        bytearray("HTTP/1.1 301 PATH_FORMAT_INCORRECT\r\n", 'utf-8'))
+        # Throwing a bad request response
         else:
-            # Throwing a 200 response when given a root
             self.request.sendall(
-                bytearray("HTTP/1.1 200 OK\r\n", 'utf-8'))
+                bytearray("HTTP/1.1 400 BAD_REQUEST\r\n", 'utf-8'))
 
 
 if __name__ == "__main__":

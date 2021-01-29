@@ -41,44 +41,42 @@ class MyWebServer(socketserver.BaseRequestHandler):
                 bytearray("HTTP/1.1 400 BAD_REQUEST\r\n", 'utf-8'))
 
         # Figure out our request method, path, and which version of HTTP we're using
-        method, path, protocol = [i.strip().decode("utf-8")
-                                  for i in temp[0].split()]
+        method, path_recieved, protocol = [i.strip().decode("utf-8")
+                                           for i in temp[0].split()]
 
-        # Create the headers, but only if we have a GET reqeust
+        # Rasing a 405 response if method anything BUT a GET request
         if 'GET' != method:
             self.request.sendall(
                 bytearray("HTTP/1.1 405 METHOD_NOT_ALLOWED\r\n", 'utf-8'))
 
         # Checking the path file type
-        file_type = path[path.find('.')+1:]
-
-        # Raising a 404 response code if file type is not HTML or CSS
-        # try:
-        #     if file_type != 'html' and file_type != 'css':
-        #         self.request.sendall(
-        #             bytearray("HTTP/1.1 404 FILE_NOT_FOUND\r\n", 'utf-8'))
-        #         print("I'm in!!!!")
-        # except:
-        #     pass
+        file_type = path_recieved[path_recieved.find('.')+1:]
 
         # Correcting path format
-        path = "." + path
+        path_recieved = "." + path_recieved
 
-        if not os.path.isfile(path):
+        # Raising a 404 response if file if not within the path provided within the request
+        if not os.path.isfile(path_recieved):
             self.request.sendall(
                 bytearray("HTTP/1.1 404 FILE_NOT_FOUND\r\n", 'utf-8'))
 
-        self.request.sendall(bytearray('Content-Type: text/html\n', 'utf-8'))
+        # Opening and reading the file in the path
+        file_open = open(path_recieved, "r")
+        file_read = file_open.read()
 
-        self.request.sendall(
-            bytearray("HTTP/1.1 " + open(path, "r").read() + "\r\n", 'utf-8'))
-
-        self.request.sendall(bytearray("HTTP/1.1 200 OK\r\n", 'utf-8'))
-        self.request.sendall(bytearray('Content-Type: text/html\r\n', 'utf-8'))
-        self.request.send(bytearray('\n', 'utf-8'))
-        self.request.sendall(bytearray(""+l+"", 'utf-8'))
-
-        # self.request.sendall(bytearray("HTTP/1.1 200 OK\r\n", 'utf-8'))
+        # Displaying HTML
+        if file_type == 'html':
+            self.request.sendall(bytearray("HTTP/1.1 200 OK\r\n", 'utf-8'))
+            self.request.sendall(
+                bytearray('Content-Type: text/html\r\n', 'utf-8'))
+            self.request.send(bytearray('\r\n', 'utf-8'))
+            self.request.sendall(bytearray(""+file_read+"", 'utf-8'))
+        elif file_type == 'css':
+            self.request.sendall(bytearray("HTTP/1.1 200 OK\r\n", 'utf-8'))
+            self.request.sendall(
+                bytearray('Content-Type: text/css\r\n', 'utf-8'))
+            self.request.send(bytearray('\r\n', 'utf-8'))
+            self.request.sendall(bytearray(""+file_read+"", 'utf-8'))
 
 
 if __name__ == "__main__":
